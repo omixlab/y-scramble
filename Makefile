@@ -1,3 +1,5 @@
+.PHONY: tests
+
 PYPI_USER := ""
 PYPI_PASS := ""
 

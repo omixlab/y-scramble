@@ -1,5 +1,6 @@
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import SCORERS
+import pandas as pd
 import numpy as np
 import scipy
 import copy
@@ -11,7 +12,7 @@ class Scrambler:
         self.scrambled_models = []
         self.iterations = iterations
     
-    def validate(self, X, y, method="train_test_split", scoring="accuracy", cross_val_score_aggregator="mean", pvalue_threshold=0.05, cv_kfolds=7):
+    def validate(self, X, y, method="train_test_split", scoring="accuracy", cross_val_score_aggregator="mean", pvalue_threshold=0.05, cv_kfolds=7, as_df=False):
         model_scorer = SCORERS.get(scoring)
         if model_scorer is None:
             raise Exception(f"scoring function '{model_scorer}' is not a sklearn scorer")
@@ -27,7 +28,19 @@ class Scrambler:
         all_scores_zscores = scipy.stats.zscore(all_scores)
         all_scores_pvalues = scipy.stats.norm.sf(abs(all_scores_zscores))*2
 
-        return all_scores, all_scores_zscores, all_scores_pvalues, all_scores_pvalues <= pvalue_threshold
+        all_scores_significances = all_scores_pvalues <= pvalue_threshold
+
+        if as_df:
+
+            df = pd.DataFrame({"score": all_scores, "zscore": all_scores_zscores, "pvalue": all_scores_pvalues, "significancy": all_scores_significances})
+            df['model'] = 'base_model'
+            df['model'][1::] = 'randomized'
+
+            return df
+
+        else:
+
+            return all_scores, all_scores_zscores, all_scores_pvalues, all_scores_pvalues <= pvalue_threshold
 
     def __validate_train_test_split(self, X, y, scorer):
         
