@@ -2,7 +2,7 @@
 
 Y-Scramble is a simple python package to perform y-randomization validation
 of machine learning models. It can be used for classification and regression tasks
-and accepts models following the `scikit-learn`inteface, and the user may use all *scorers* available at `scikit-learn` (`accuracy`, `recall`, `precision`).
+and accepts models following the `scikit-learn`interface, and the user may use all *scorers* available at `scikit-learn` (`accuracy`, `recall`, `precision`).
 
 ## Installing
 
