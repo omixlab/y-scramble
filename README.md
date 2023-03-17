@@ -18,9 +18,12 @@ $ pip install y-scamble
 
 from y_scramble import Scrambler
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
 
 X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y)
 model = DecisionTreeClassifier()
+
 scrambler = Scrambler(model=model, iterations=1000)
 
 scores, zscores, pvalues, significances = scrambler.validate(

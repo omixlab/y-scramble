@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import scipy
 import copy
+import json
 
 class Scrambler:
 
@@ -12,16 +13,28 @@ class Scrambler:
         self.scrambled_models = []
         self.iterations = iterations
     
-    def validate(self, X, y, method="train_test_split", scoring="accuracy", cross_val_score_aggregator="mean", pvalue_threshold=0.05, cv_kfolds=7, as_df=False):
+    def validate(self, X_train=None, X_test=None, y_train=None, y_test=None, scoring="accuracy", trained=True, pvalue_threshold=0.05):
+        """
+        Run a y-
+        """
+        scrambled_model_scores = []
         model_scorer = SCORERS.get(scoring)
+
         if model_scorer is None:
             raise Exception(f"scoring function '{model_scorer}' is not a sklearn scorer")
+        
+        if not trained:
+            self.base_model.fit(X_train, y_train)
 
-        if method == "train_test_split":
-            base_model_score, scrambled_model_scores = self.__validate_train_test_split(X, y, model_scorer)
+        y_pred = self.base_model.predict(X_test)
+        base_model_score = model_scorer(self.base_model, X_test, y_test)
 
-        elif method == "cross_validation":
-            base_model_score, scrambled_model_scores = self.__validate_cross_validation(X, y, model_scorer, aggregation=cross_val_score_aggregator, cv_kfolds=cv_kfolds)
+        for _ in range(self.iterations):
+
+            np.random.shuffle(X_train)
+            self.base_model.fit(X_train, y_train)
+            
+            scrambled_model_scores.append(model_scorer(self.base_model, X_test, y_test))
 
         all_scores = [base_model_score, *scrambled_model_scores]
 
@@ -30,55 +43,19 @@ class Scrambler:
 
         all_scores_significances = all_scores_pvalues <= pvalue_threshold
 
-        if as_df:
+        results = {
+            'base_model': {
+                'score': all_scores[0], 
+                'p-value': all_scores_pvalues[0], 
+                'z-score': all_scores_zscores[0], 
+                'significancy': all_scores_significances[0] 
+            },
+            'scrambled_model': {
+                'scores': all_scores[1::], 
+                'p-values': all_scores_pvalues[1::], 
+                'z-scores': all_scores_zscores[1::], 
+                'significances': all_scores_significances[1::]
+            }
+        }
 
-            df = pd.DataFrame({"score": all_scores, "zscore": all_scores_zscores, "pvalue": all_scores_pvalues, "significancy": all_scores_significances})
-            df['model'] = 'base_model'
-            df['model'][1::] = 'randomized'
-
-            return df
-
-        else:
-
-            return all_scores, all_scores_zscores, all_scores_pvalues, all_scores_pvalues <= pvalue_threshold
-
-    def __validate_train_test_split(self, X, y, scorer):
-        
-        X_train, X_test, y_train, y_test = train_test_split(X, y)
-        self.base_model.fit(X_train, y_train)
-        self.scrambled_models = [copy.copy(self.base_model) for _ in range(self.iterations)]
-        base_model_score = scorer(self.base_model, X_test, y_test)
-        scrambled_model_scores = []
-
-        for scrambled_model in self.scrambled_models:
-
-            y_train_scrambled = copy.copy(y_train)
-            np.random.shuffle(y_train_scrambled)
-            scrambled_model.fit(X_train, y_train_scrambled)
-            scrambled_model_score = scorer(scrambled_model, X_test, y_test)
-            scrambled_model_scores.append(scrambled_model_score)
-
-        return base_model_score, scrambled_model_scores
-        
-    def __validate_cross_validation(self, X, y, scorer, aggregation="mean", cv_kfolds=7):
-        
-        if aggregation == "mean":
-            aggregator = np.mean
-        elif aggregation == "median":
-            aggregator = np.median
-        else:
-            raise Exception(f"aggregation function '{aggregation}' is not available (choose mean or median)")
-
-        base_model_score = aggregator(cross_val_score(self.base_model, X, y, scoring=scorer, cv=cv_kfolds))
-        self.scrambled_models = [copy.copy(self.base_model) for _ in range(self.iterations)]
-
-        scrambled_model_scores = []
-
-        for scrambled_model in self.scrambled_models:
-            y_scrambled = copy.copy(y)
-            np.random.shuffle(y_scrambled)
-            scores = cross_val_score(scrambled_model, X, y_scrambled, scoring=scorer)
-            scrambled_model_score = aggregator(scores)
-            scrambled_model_scores.append(scrambled_model_score)
-            
-        return base_model_score, scrambled_model_scores
+        return results
